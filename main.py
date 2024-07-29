@@ -46,7 +46,7 @@ def get_unique_pixels(pixel_values):
             if column in unique_pixels:
                 continue
             unique_pixels.append(column)
-    return unique_pixels
+    return sorted(unique_pixels)
 
 def make_pixel_dictionary(unique_pixels):
     pixel_dictionary = {}
