@@ -12,23 +12,26 @@ def print_to_console(arr):
 def image_to_2d_array(image_path):
     img = Image.open(image_path)
 
-    # Convert the image to RGB mode (just in case it's in another format)
-    img = img.convert('RGB')
+    if img.mode != 'RGBA':
+        img = img.convert('RGBA')
 
     width, height = img.size
     arr = [[0 for _ in range(width)] for _ in range(height)]
 
     for y in range(height):
         for x in range(width):
-            r, g, b = img.getpixel((x, y))
-            arr[y][x] = f"{r:03}{g:03}{b:03}"
+            r, g, b, a = img.getpixel((x, y))
+            if a == 0:
+                arr[y][x] = "0"
+            else:
+                arr[y][x] = f"{r:03}{g:03}{b:03}"
 
     return arr
 
 def create_empty_image_to_size(arr):
     width = len(arr[0]) * symbols_dimension
     height = len(arr) * symbols_dimension
-    image = Image.new("RGB", (width, height))
+    image = Image.new("RGB", (width, height), "white")
     return image
 
 def fill_pattern(symbols_array, empty_image, pixels, pixel_dictionary):
@@ -36,14 +39,15 @@ def fill_pattern(symbols_array, empty_image, pixels, pixel_dictionary):
         for j, pixel_value in enumerate(row):
             output_x = j * symbols_dimension
             output_y = i * symbols_dimension
-            empty_image.paste(symbols_array[pixel_dictionary[pixel_value]], (output_x, output_y))
+            if pixel_value != "0":
+                empty_image.paste(symbols_array[pixel_dictionary[pixel_value]], (output_x, output_y))
     return empty_image
 
 def get_unique_pixels(pixel_values):
     unique_pixels = []
     for row in pixel_values:
         for column in row:
-            if column in unique_pixels:
+            if column == "0" or column in unique_pixels:
                 continue
             unique_pixels.append(column)
     return sorted(unique_pixels)
