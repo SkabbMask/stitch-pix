@@ -2,6 +2,7 @@ from PIL import Image, ImageDraw
 import argparse
 
 symbols_dimension = 10
+consolidation_threshold = 5
 
 def print_to_console(arr):
     for y in range(len(arr)):
@@ -42,6 +43,33 @@ def fill_pattern(symbols_array, empty_image, pixels, pixel_dictionary):
             if pixel_value != "0":
                 empty_image.paste(symbols_array[pixel_dictionary[pixel_value]], (output_x, output_y))
     return empty_image
+
+def consolidate_pixels(pixel_values):
+    pixel_count = {}
+    for row in pixel_values:
+        for column in row:
+            if column in pixel_count:
+                pixel_count[column] += 1
+                continue
+            pixel_count[column] = 1
+
+    need_consolidate = True
+    while need_consolidate:
+        need_consolidate = False
+        for x, row in enumerate(pixel_values):
+            for y, column in enumerate(row):
+                if pixel_count[column] <= consolidation_threshold:
+                    if x > 0 and pixel_count[pixel_values[x-1][y]] > consolidation_threshold:
+                        pixel_values[x][y] = pixel_values[x-1][y]
+                    elif x < 1-len(pixel_values[0]) and pixel_count[pixel_values[x+1][y]] > consolidation_threshold:
+                        pixel_values[x][y] = pixel_values[x+1][y]
+                    elif y > 0 and pixel_count[pixel_values[x][y-1]] > consolidation_threshold:
+                        pixel_values[x][y] = pixel_values[x][y-1]
+                    elif y < 1-len(pixel_values) and pixel_count[pixel_values[x][y+1]] > consolidation_threshold:
+                        pixel_values[x][y] = pixel_values[x][y+1]
+                    else:
+                        need_consolidate = True
+    return pixel_values
 
 def get_unique_pixels(pixel_values):
     unique_pixels = []
@@ -92,7 +120,11 @@ def generate_cross_stitch_pattern(input_image_path, symbols_image_path, output_i
 
     pixel_values = image_to_2d_array(input_image_path)
 
+    pixel_values = consolidate_pixels(pixel_values)
+
     unique_pixels = get_unique_pixels(pixel_values)
+
+    print("Unique pixel colors: " + str(len(unique_pixels)))
 
     if len(symbols_array) < len(unique_pixels):
         print("Not enough symbols (" + str(len(symbols_array)) + ") for unique pixels (" + str(len(unique_pixels)) + ")")
