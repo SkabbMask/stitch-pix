@@ -44,6 +44,19 @@ def fill_pattern(symbols_array, empty_image, pixels, pixel_dictionary):
                 empty_image.paste(symbols_array[pixel_dictionary[pixel_value]], (output_x, output_y))
     return empty_image
 
+def fill_reference_image(pixels, unique_pixels):
+    image = Image.new("RGB", (len(pixels[0]), len(pixels)), "white")
+    draw = ImageDraw.Draw(image)
+    for i, row in enumerate(pixels):
+        for j, pixel_value in enumerate(row):
+            if pixel_value != "0":
+                rgb_string = pixel_value
+                r = int(rgb_string[:3])
+                g = int(rgb_string[3:6])
+                b = int(rgb_string[6:])
+                draw.rectangle([j, i, j, i], fill=(r,g,b))
+    return image
+
 def consolidate_pixels(pixel_values):
     pixel_count = {}
     for row in pixel_values:
@@ -142,6 +155,11 @@ def generate_cross_stitch_pattern(input_image_path, symbols_image_path, output_i
     pattern_path = output_image_path+"\pattern.png"
     pattern_image.save(pattern_path)
     print("Saved image to " + pattern_path)
+
+    reference_image_consolidated = fill_reference_image(pixel_values, unique_pixels)
+    ref_path = output_image_path+"\ef_.png"
+    reference_image_consolidated.save(ref_path)
+    print("Saved consolidated reference image to " + ref_path)
 
 def main():
     parser = argparse.ArgumentParser(description="Generate cross-stitch pattern from image.")
