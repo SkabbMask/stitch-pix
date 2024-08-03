@@ -1,13 +1,15 @@
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 from sklearn.cluster import KMeans
 import argparse
 
 # python main.py "symbol_path" "output_path" "input_path"
-# python main.py "C:\Users\Zroix\Documents\stitch-pix\Examples\crossstitch_symbols.png" "C:\Users\Zroix\Documents\stitch-pix\Examples" "C:\Users\Zroix\Documents\stitch-pix\Examples\cutted_onlyhead.png"
+# python main.py "C:\Users\Zroix\Documents\stitch-pix\Examples\Satoshi-Variable.ttf" "C:\Users\Zroix\Documents\stitch-pix\Examples\crossstitch_symbols.png" "C:\Users\Zroix\Documents\stitch-pix\Examples" "C:\Users\Zroix\Documents\stitch-pix\Examples\onlyhead_final.png"
 
 symbols_dimension = 10
-total_colors = 50
+total_colors = 5
+font_size = 12
+font_color = (0, 0, 0, 255)
 
 def kmeans_color_quantization(reference_image):
     pixel_list = []
@@ -100,20 +102,27 @@ def make_symbol_array(symbols_image):
             symbols_array.append(symbol)
     return symbols_array
 
-def create_symbol_color_reference(unique_pixels, pixel_dictionary, symbols_array):
-    image = Image.new("RGB", (symbols_dimension*5, ((symbols_dimension+5)*len(unique_pixels)) + 10), "white")
+def create_symbol_color_reference(unique_pixels, pixel_dictionary, symbols_array, font_path):
+    image = Image.new("RGB", (symbols_dimension*5 + font_size * 5, ((symbols_dimension+5)*len(unique_pixels)) + 10), "white")
     draw = ImageDraw.Draw(image)
+
+    try:
+        font = ImageFont.truetype(font_path, font_size)
+    except IOError:
+        font = ImageFont.load_default()
+
     for i in range(len(unique_pixels)):
         row_y = 5 + (i * (symbols_dimension + 5))
 
-        index = pixel_dictionary[unique_pixels[i]]
+        pixel = unique_pixels[i]
+        index = pixel_dictionary[pixel]
         symbol = symbols_array[index]
         image.paste(symbol, (5, row_y))
-
         draw.rectangle([10 + symbols_dimension, row_y, 10 + (symbols_dimension*2), row_y + symbols_dimension], fill=unique_pixels[i])
+        draw.text([10 + symbols_dimension + 20, row_y], "#{:02X}{:02X}{:02X}".format(pixel[0], pixel[1], pixel[2]), font=font, fill=font_color)
     return image
 
-def generate_cross_stitch_pattern(input_image_path, symbols_image_path, output_image_path):
+def generate_cross_stitch_pattern(input_image_path, symbols_image_path, output_image_path, font_path):
     symbols_image = Image.open(symbols_image_path)
     symbols_array = make_symbol_array(symbols_image)
 
@@ -136,7 +145,7 @@ def generate_cross_stitch_pattern(input_image_path, symbols_image_path, output_i
         return
 
     pixel_dictionary = make_pixel_dictionary(unique_pixels_array)
-    color_reference = create_symbol_color_reference(unique_pixels_array, pixel_dictionary, symbols_array)
+    color_reference = create_symbol_color_reference(unique_pixels_array, pixel_dictionary, symbols_array, font_path)
     color_reference_path = output_image_path+"\color_reference.png"
     color_reference.save(color_reference_path)
     print("Saved color reference to " + color_reference_path)
@@ -149,13 +158,14 @@ def generate_cross_stitch_pattern(input_image_path, symbols_image_path, output_i
 
 def main():
     parser = argparse.ArgumentParser(description="Generate cross-stitch pattern from image.")
+    parser.add_argument("font_path", help="Path to the font file.")
     parser.add_argument("symbols_image_path", help="Path to the symbol image.")
     parser.add_argument("output_image_path", help="Path to map to save generated pattern and color reference.")
     parser.add_argument("input_image_path", help="Path to the input image.")
 
     args = parser.parse_args()
 
-    generate_cross_stitch_pattern(args.input_image_path, args.symbols_image_path, args.output_image_path)
+    generate_cross_stitch_pattern(args.input_image_path, args.symbols_image_path, args.output_image_path, args.font_path)
 
 if __name__ == "__main__":
     main()
