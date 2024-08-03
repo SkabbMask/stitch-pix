@@ -1,17 +1,19 @@
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 from sklearn.cluster import KMeans
-import argparse
+import os
 
-# python main.py "symbol_path" "output_path" "input_path"
-# python main.py "C:\Users\Zroix\Documents\stitch-pix\Examples\Satoshi-Variable.ttf" "C:\Users\Zroix\Documents\stitch-pix\Examples\crossstitch_symbols.png" "C:\Users\Zroix\Documents\stitch-pix\Examples" "C:\Users\Zroix\Documents\stitch-pix\Examples\onlyhead_final.png"
+def read_config_file(file_path):
+    config = {}
+    with open(file_path, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                key, value = line.split('=', 1)
+                config[key.strip()] = value.strip()
+    return config
 
-symbols_dimension = 10
-total_colors = 5
-font_size = 12
-font_color = (0, 0, 0, 255)
-
-def kmeans_color_quantization(reference_image):
+def kmeans_color_quantization(reference_image, total_colors):
     pixel_list = []
     width, height = reference_image.size
     for y in range(height):
@@ -46,12 +48,12 @@ def kmeans_color_quantization(reference_image):
 
     return new_pixels
 
-def create_empty_image_to_size(reference_image):
+def create_empty_image_to_size(reference_image, symbols_dimension):
     width, height = reference_image.size
     image = Image.new("RGBA", (width * symbols_dimension, height * symbols_dimension), "white")
     return image
 
-def fill_pattern(reference_image, symbols_array, empty_image, pixel_dictionary):
+def fill_pattern(reference_image, symbols_array, empty_image, pixel_dictionary, symbols_dimension):
     width, height = reference_image.size
     for y in range(height):
         for x in range(width):
@@ -91,7 +93,7 @@ def make_pixel_dictionary(unique_pixels):
         pixel_dictionary[unique_pixels[i]] = i
     return pixel_dictionary
 
-def make_symbol_array(symbols_image):
+def make_symbol_array(symbols_image, symbols_dimension):
     symbols_array = []
     width, height = symbols_image.size
     for x in range(int(width / symbols_dimension)):
@@ -102,37 +104,43 @@ def make_symbol_array(symbols_image):
             symbols_array.append(symbol)
     return symbols_array
 
-def create_symbol_color_reference(unique_pixels, pixel_dictionary, symbols_array, font_path):
-    image = Image.new("RGB", (symbols_dimension*5 + font_size * 5, ((symbols_dimension+5)*len(unique_pixels)) + 10), "white")
+def create_symbol_color_reference(unique_pixels, pixel_dictionary, symbols_array, config):
+    _dim = int(config['symbols_dimension'])
+    _font_s = int(config['font_size'])
+    image = Image.new("RGB", (_dim*5 + _font_s * 5, ((_dim+5)*len(unique_pixels)) + 10), "white")
     draw = ImageDraw.Draw(image)
 
     try:
-        font = ImageFont.truetype(font_path, font_size)
+        font = ImageFont.truetype(config['font_path'], _font_s)
     except IOError:
         font = ImageFont.load_default()
 
     for i in range(len(unique_pixels)):
-        row_y = 5 + (i * (symbols_dimension + 5))
+        row_y = 5 + (i * (_dim + 5))
 
         pixel = unique_pixels[i]
         index = pixel_dictionary[pixel]
         symbol = symbols_array[index]
         image.paste(symbol, (5, row_y))
-        draw.rectangle([10 + symbols_dimension, row_y, 10 + (symbols_dimension*2), row_y + symbols_dimension], fill=unique_pixels[i])
-        draw.text([10 + symbols_dimension + 20, row_y], "#{:02X}{:02X}{:02X}".format(pixel[0], pixel[1], pixel[2]), font=font, fill=font_color)
+        draw.rectangle([10 + _dim, row_y, 10 + (_dim * 2), row_y + _dim], fill=unique_pixels[i])
+        draw.text([10 + _dim + 20, row_y], "#{:02X}{:02X}{:02X}".format(pixel[0], pixel[1], pixel[2]), font=font, fill=(0, 0, 0, 255))
     return image
 
-def generate_cross_stitch_pattern(input_image_path, symbols_image_path, output_image_path, font_path):
-    symbols_image = Image.open(symbols_image_path)
-    symbols_array = make_symbol_array(symbols_image)
+def generate_cross_stitch_pattern():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    config_file_path = os.path.join(script_dir, 'config.txt')
+    config = read_config_file(config_file_path)
 
-    reference_image = Image.open(input_image_path)
-    pixel_array_consolidated = kmeans_color_quantization(reference_image)
+    symbols_image = Image.open(config['symbols_image_path'])
+    symbols_array = make_symbol_array(symbols_image, int(config['symbols_dimension']))
+
+    reference_image = Image.open(config['image_path'])
+    pixel_array_consolidated = kmeans_color_quantization(reference_image, int(config['total_colors']))
 
     unique_pixels_array_preconsolidated = get_unique_pixels(reference_image)
 
     reference_image_consolidated = fill_reference_image(pixel_array_consolidated)
-    ref_path = output_image_path+"\ef_.png"
+    ref_path = config['output_path'] + "\ef_.png"
     reference_image_consolidated.save(ref_path)
     print("Saved consolidated reference image to " + ref_path)
 
@@ -145,27 +153,19 @@ def generate_cross_stitch_pattern(input_image_path, symbols_image_path, output_i
         return
 
     pixel_dictionary = make_pixel_dictionary(unique_pixels_array)
-    color_reference = create_symbol_color_reference(unique_pixels_array, pixel_dictionary, symbols_array, font_path)
-    color_reference_path = output_image_path+"\color_reference.png"
+    color_reference = create_symbol_color_reference(unique_pixels_array, pixel_dictionary, symbols_array, config)
+    color_reference_path = config['output_path'] + "\color_reference.png"
     color_reference.save(color_reference_path)
     print("Saved color reference to " + color_reference_path)
 
-    empty_image = create_empty_image_to_size(reference_image_consolidated)
-    pattern_image = fill_pattern(reference_image_consolidated, symbols_array, empty_image, pixel_dictionary)
-    pattern_path = output_image_path+"\pattern.png"
+    empty_image = create_empty_image_to_size(reference_image_consolidated, int(config['symbols_dimension']))
+    pattern_image = fill_pattern(reference_image_consolidated, symbols_array, empty_image, pixel_dictionary, int(config['symbols_dimension']))
+    pattern_path = config['output_path'] + "\pattern.png"
     pattern_image.save(pattern_path)
     print("Saved image to " + pattern_path)
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate cross-stitch pattern from image.")
-    parser.add_argument("font_path", help="Path to the font file.")
-    parser.add_argument("symbols_image_path", help="Path to the symbol image.")
-    parser.add_argument("output_image_path", help="Path to map to save generated pattern and color reference.")
-    parser.add_argument("input_image_path", help="Path to the input image.")
-
-    args = parser.parse_args()
-
-    generate_cross_stitch_pattern(args.input_image_path, args.symbols_image_path, args.output_image_path, args.font_path)
+    generate_cross_stitch_pattern()
 
 if __name__ == "__main__":
     main()

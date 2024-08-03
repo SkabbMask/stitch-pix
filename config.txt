@@ -1,0 +1,10 @@
+image_path = path.png
+output_path = path
+
+symbols_image_path = path.png
+symbols_dimension = 10
+
+font_path = path.ttf
+font_size = 12
+
+total_colors = 5
