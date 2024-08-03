@@ -104,10 +104,33 @@ def make_symbol_array(symbols_image, symbols_dimension):
             symbols_array.append(symbol)
     return symbols_array
 
-def create_symbol_color_reference(unique_pixels, pixel_dictionary, symbols_array, config):
-    _dim = int(config['symbols_dimension'])
+def make_color_count(pixels):
+    count_dict = {}
+    for y, row in enumerate(pixels):
+        for x, pixel in enumerate(row):
+            if pixel[3] != 0:
+                if pixel in count_dict:
+                    count_dict[pixel] += 1
+                else:
+                    count_dict[pixel] = 1
+    return count_dict
+
+def create_symbol_color_reference(unique_pixels, pixel_dictionary, symbols_array, pixel_count, config):
+    # 100 x [symbol] [color] HEXCOLOR
+    
     _font_s = int(config['font_size'])
-    image = Image.new("RGB", (_dim*5 + _font_s * 5, ((_dim+5)*len(unique_pixels)) + 10), "white")
+    _dim = int(config['symbols_dimension'])
+
+    max_key = max(pixel_count, key=pixel_count.get)
+    max_count = pixel_count[max_key]
+    count_x = 1
+    sym_x = count_x + (len(str(max_count) + " x") * _font_s) + 2
+    col_x = sym_x + _dim + 2
+    hex_x = col_x + _dim + 2
+    end_x = hex_x + (7 * _font_s) + 2
+
+    height = ((_dim+5)*len(unique_pixels)) + 20
+    image = Image.new("RGB", (end_x, height), "white")
     draw = ImageDraw.Draw(image)
 
     try:
@@ -115,15 +138,19 @@ def create_symbol_color_reference(unique_pixels, pixel_dictionary, symbols_array
     except IOError:
         font = ImageFont.load_default()
 
+    total_count = 0
     for i in range(len(unique_pixels)):
         row_y = 5 + (i * (_dim + 5))
 
         pixel = unique_pixels[i]
         index = pixel_dictionary[pixel]
         symbol = symbols_array[index]
-        image.paste(symbol, (5, row_y))
-        draw.rectangle([10 + _dim, row_y, 10 + (_dim * 2), row_y + _dim], fill=unique_pixels[i])
-        draw.text([10 + _dim + 20, row_y], "#{:02X}{:02X}{:02X}".format(pixel[0], pixel[1], pixel[2]), font=font, fill=(0, 0, 0, 255))
+        draw.text([count_x, row_y], str(pixel_count[pixel]) + "x", font=font, fill=(0, 0, 0, 255))
+        image.paste(symbol, (sym_x, row_y))
+        draw.rectangle([col_x, row_y, col_x + _dim, row_y + _dim], fill=unique_pixels[i])
+        draw.text([hex_x, row_y], "#{:02X}{:02X}{:02X}".format(pixel[0], pixel[1], pixel[2]), font=font, fill=(0, 0, 0, 255))
+        total_count += pixel_count[pixel]
+    draw.text([count_x, height - 15], "Total: " + str(total_count), font=font, fill=(0, 0, 0, 255))
     return image
 
 def generate_cross_stitch_pattern():
@@ -148,8 +175,9 @@ def generate_cross_stitch_pattern():
         print("Not enough symbols (" + str(len(symbols_array)) + ") for amount of unique pixels (" + str(len(unique_pixels_array)) + ")")
         return
 
+    pixel_count = make_color_count(pixel_array_consolidated)
     pixel_dictionary = make_pixel_dictionary(unique_pixels_array)
-    color_reference = create_symbol_color_reference(unique_pixels_array, pixel_dictionary, symbols_array, config)
+    color_reference = create_symbol_color_reference(unique_pixels_array, pixel_dictionary, symbols_array, pixel_count, config)
     color_reference_path = config['output_path'] + "\color_reference.png"
     color_reference.save(color_reference_path)
     print("Saved color reference to " + color_reference_path)
