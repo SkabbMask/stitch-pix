@@ -1,14 +1,24 @@
 from PIL import Image, ImageDraw
 import argparse
+import math
 
 symbols_dimension = 10
-consolidation_threshold = 5
+consolidation_threshold = 9
+color_same_threshold = 266
 
-def print_to_console(arr):
-    for y in range(len(arr)):
-        for x in range(len(arr[y])):
-            print(arr[y][x])
-        print("endline")
+def is_color_basically_same(color1, color2):
+    r1 = int(color1[:3])
+    g1 = int(color1[3:6])
+    b1 = int(color1[6:])
+    r2 = int(color2[:3])
+    g2 = int(color2[3:6])
+    b2 = int(color2[6:])
+
+    print("checking " + color1 + " and " + color2) 
+    # euclidean distance
+    distance = math.sqrt((r1 - r2)**2 + (g1 - g2)**2 + (b1 - b2)**2)
+    print("distance: " + str(distance))
+    return distance <= color_same_threshold
 
 def image_to_2d_array(image_path):
     img = Image.open(image_path)
@@ -67,21 +77,45 @@ def consolidate_pixels(pixel_values):
             pixel_count[column] = 1
 
     need_consolidate = True
-    while need_consolidate:
+    anything_changed = True
+    turns = 0
+    while need_consolidate and anything_changed:
         need_consolidate = False
+        anything_changed = False
         for x, row in enumerate(pixel_values):
             for y, column in enumerate(row):
+                if column == "0":
+                    continue
                 if pixel_count[column] <= consolidation_threshold:
-                    if x > 0 and pixel_count[pixel_values[x-1][y]] > consolidation_threshold:
+                    if x > 0 and pixel_values[x-1][y] != "0" and pixel_count[pixel_values[x-1][y]] > consolidation_threshold and is_color_basically_same(column, pixel_values[x-1][y]):
+                        print("same color changed")
+                        anything_changed = True
                         pixel_values[x][y] = pixel_values[x-1][y]
-                    elif x < 1-len(pixel_values[0]) and pixel_count[pixel_values[x+1][y]] > consolidation_threshold:
+                    elif x < 1-len(pixel_values[0]) and pixel_values[x+1][y] != "0" and pixel_count[pixel_values[x+1][y]] > consolidation_threshold and is_color_basically_same(column, pixel_values[x+1][y]):
+                        print("same color changed")
+                        anything_changed = True
                         pixel_values[x][y] = pixel_values[x+1][y]
-                    elif y > 0 and pixel_count[pixel_values[x][y-1]] > consolidation_threshold:
+                    elif y > 0 and pixel_values[x][y-1] != "0" and pixel_count[pixel_values[x][y-1]] > consolidation_threshold and is_color_basically_same(column, pixel_values[x][y-1]):
+                        print("same color changed")
+                        anything_changed = True
                         pixel_values[x][y] = pixel_values[x][y-1]
-                    elif y < 1-len(pixel_values) and pixel_count[pixel_values[x][y+1]] > consolidation_threshold:
+                    elif y < 1-len(pixel_values) and pixel_values[x][y+1] != "0" and pixel_count[pixel_values[x][y+1]] > consolidation_threshold and is_color_basically_same(column, pixel_values[x][y+1]):
+                        print("same color changed")
+                        anything_changed = True
                         pixel_values[x][y] = pixel_values[x][y+1]
+                    # elif x > 0 and pixel_count[pixel_values[x-1][y]] > consolidation_threshold:
+                    #    pixel_values[x][y] = pixel_values[x-1][y]
+                    # elif x < 1-len(pixel_values[0]) and pixel_count[pixel_values[x+1][y]] > consolidation_threshold:
+                    #    pixel_values[x][y] = pixel_values[x+1][y]
+                    # elif y > 0 and pixel_count[pixel_values[x][y-1]] > consolidation_threshold:
+                    #    pixel_values[x][y] = pixel_values[x][y-1]
+                    # elif y < 1-len(pixel_values) and pixel_count[pixel_values[x][y+1]] > consolidation_threshold:
+                    #    pixel_values[x][y] = pixel_values[x][y+1]
                     else:
                         need_consolidate = True
+        print("new round")
+        turns += 1
+    print("turns: " + str(turns))
     return pixel_values
 
 def get_unique_pixels(pixel_values):
