@@ -137,16 +137,12 @@ def generate_cross_stitch_pattern():
     reference_image = Image.open(config['image_path'])
     pixel_array_consolidated = kmeans_color_quantization(reference_image, int(config['total_colors']))
 
-    unique_pixels_array_preconsolidated = get_unique_pixels(reference_image)
-
     reference_image_consolidated = fill_reference_image(pixel_array_consolidated)
     ref_path = config['output_path'] + "\ef_.png"
     reference_image_consolidated.save(ref_path)
     print("Saved consolidated reference image to " + ref_path)
 
     unique_pixels_array = get_unique_pixels(reference_image_consolidated)
-
-    print("Reduced from " + str(len(unique_pixels_array_preconsolidated)) + " to " + str(len(unique_pixels_array)) + " colors")
 
     if len(symbols_array) < len(unique_pixels_array):
         print("Not enough symbols (" + str(len(symbols_array)) + ") for amount of unique pixels (" + str(len(unique_pixels_array)) + ")")
