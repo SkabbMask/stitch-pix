@@ -1,10 +1,11 @@
-image_path = path.png
-output_path = path
+image_path = PATH\stitch-pix\Examples\lizzi.png
+output_path = PATH\stitch-pix\Examples
 
-symbols_image_path = path.png
-symbols_dimension = 10
+symbols_image_path = PATH\stitch-pix\Examples\crossstitch_symbols.png
+symbols_dimension = 40
 
-font_path = path.ttf
-font_size = 12
+font_path = PATH\stitch-pix\Examples\Satoshi-Variable.ttf
+font_size = 20
 
-total_colors = 5
+total_colors = 10
+# Total symbols in example: 57

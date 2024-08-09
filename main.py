@@ -3,6 +3,8 @@ import numpy as np
 from sklearn.cluster import KMeans
 import os
 
+marginWidth = 90
+
 def read_config_file(file_path):
     config = {}
     with open(file_path, 'r') as file:
@@ -19,8 +21,9 @@ def kmeans_color_quantization(reference_image, total_colors):
     for y in range(height):
         for x in range(width):
             pixel = reference_image.getpixel((x, y))
-            if pixel[3] != 0:
-                pixel_list.append(pixel[:3])
+            if len(pixel) >= 4 and pixel[3] == 0:
+                continue
+            pixel_list.append(pixel[:3])
 
     pixel_array = np.array(pixel_list)
     
@@ -38,7 +41,7 @@ def kmeans_color_quantization(reference_image, total_colors):
         new_row = []
         for x in range(width):
             pixel = reference_image.getpixel((x, y))
-            if pixel[3] == 0:
+            if len(pixel) >= 4 and pixel[3] == 0:
                 new_row.append((0, 0, 0, 0))
             else:
                 r, g, b = tuple(cluster_centers[labels[index]])
@@ -50,16 +53,53 @@ def kmeans_color_quantization(reference_image, total_colors):
 
 def create_empty_image_to_size(reference_image, symbols_dimension):
     width, height = reference_image.size
-    image = Image.new("RGBA", (width * symbols_dimension, height * symbols_dimension), "white")
+    image = Image.new("RGBA", ((width * symbols_dimension) + marginWidth*2, (height * symbols_dimension) + marginWidth*2), "white")
     return image
+
+def fill_with_squares(empty_image, config):
+
+    _font_s = int(config['font_size'])
+    _dim = int(config['symbols_dimension'])
+
+    try:
+        font = ImageFont.truetype(config['font_path'], _font_s)
+    except IOError:
+        font = ImageFont.load_default()
+
+    width, height = empty_image.size
+    squaresWidth = int(((width - (marginWidth*2)) / _dim) + 1)
+    squaresHeight = int(((height - (marginWidth*2)) / _dim) + 1)
+    draw = ImageDraw.Draw(empty_image)
+    text_height = _font_s
+    for y in range(squaresHeight):
+        lineWidth = 1
+        y_pos = (y * _dim) + marginWidth
+        if y % 10 == 0:
+            bbox = draw.textbbox((0,0), str(y), font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            draw.text([marginWidth - text_width - 4, y_pos], str(y), font=font, fill=(0, 0, 0, 255))
+            lineWidth = 2
+            y_pos -= 1
+        draw.rectangle([marginWidth, y_pos, width - marginWidth, y_pos + lineWidth], fill=(0, 0, 0, 255))
+
+    for x in range(squaresWidth):
+        lineWidth = 1
+        x_pos = (x * _dim) + marginWidth
+        if x % 10 == 0:
+            draw.text([x_pos, marginWidth - (text_height * 2)], str(x), font=font, fill=(0, 0, 0, 255))
+            lineWidth = 2
+            x_pos -= 1
+        draw.rectangle([x_pos, marginWidth, x_pos + lineWidth, height - marginWidth], fill=(0, 0, 0, 255))
+    return empty_image
 
 def fill_pattern(reference_image, symbols_array, empty_image, pixel_dictionary, symbols_dimension):
     width, height = reference_image.size
     for y in range(height):
         for x in range(width):
             r, g, b, a = reference_image.getpixel((x, y))
-            output_x = x * symbols_dimension
-            output_y = y * symbols_dimension
+            output_x = (x * symbols_dimension) + marginWidth
+            output_y = (y * symbols_dimension) + marginWidth
             if a != 0:
                 empty_image.paste(symbols_array[pixel_dictionary[(r, g, b, 255)]], (output_x, output_y))
     return empty_image
@@ -68,9 +108,9 @@ def fill_reference_image(pixels):
     image = Image.new("RGBA", (len(pixels[0]), len(pixels)), "white")
     for y, row in enumerate(pixels):
         for x, pixel in enumerate(row):
-            if pixel[3] == 0:
+            if len(pixel) >= 4 and pixel[3] == 0:
                 image.putpixel((x, y), (0, 0, 0, 0))
-            else:
+            elif len(pixel) < 4 or pixel[3] != 0:
                 r, g, b, a = pixel
                 image.putpixel((x, y), (r, g, b, 255))
     width, height = image.size
@@ -82,8 +122,9 @@ def get_unique_pixels(reference_image):
     for y in range(height):
         for x in range(width):
             pixel = reference_image.getpixel((x, y))
-            if pixel[3] != 0:
-                unique_pixels.add(pixel)
+            if len(pixel) >= 4 and pixel[3] == 0:
+                continue
+            unique_pixels.add(pixel)
     
     return sorted(unique_pixels)
 
@@ -108,11 +149,12 @@ def make_color_count(pixels):
     count_dict = {}
     for y, row in enumerate(pixels):
         for x, pixel in enumerate(row):
-            if pixel[3] != 0:
-                if pixel in count_dict:
-                    count_dict[pixel] += 1
-                else:
-                    count_dict[pixel] = 1
+            if len(pixel) >= 4 and pixel[3] == 0:
+                continue
+            if pixel in count_dict:
+                count_dict[pixel] += 1
+            else:
+                count_dict[pixel] = 1
     return count_dict
 
 def create_symbol_color_reference(unique_pixels, pixel_dictionary, symbols_array, pixel_count, config):
@@ -129,7 +171,7 @@ def create_symbol_color_reference(unique_pixels, pixel_dictionary, symbols_array
     hex_x = col_x + _dim + 2
     end_x = hex_x + (7 * _font_s) + 2
 
-    height = ((_dim+5)*len(unique_pixels)) + 20
+    height = ((_dim+5)*len(unique_pixels)) + _dim
     image = Image.new("RGB", (end_x, height), "white")
     draw = ImageDraw.Draw(image)
 
@@ -150,7 +192,7 @@ def create_symbol_color_reference(unique_pixels, pixel_dictionary, symbols_array
         draw.rectangle([col_x, row_y, col_x + _dim, row_y + _dim], fill=unique_pixels[i])
         draw.text([hex_x, row_y], "#{:02X}{:02X}{:02X}".format(pixel[0], pixel[1], pixel[2]), font=font, fill=(0, 0, 0, 255))
         total_count += pixel_count[pixel]
-    draw.text([count_x, height - 15], "Total: " + str(total_count), font=font, fill=(0, 0, 0, 255))
+    draw.text([count_x, height - (_font_s*2)], "Total: " + str(total_count), font=font, fill=(0, 0, 0, 255))
     return image
 
 def generate_cross_stitch_pattern():
@@ -184,8 +226,9 @@ def generate_cross_stitch_pattern():
 
     empty_image = create_empty_image_to_size(reference_image_consolidated, int(config['symbols_dimension']))
     pattern_image = fill_pattern(reference_image_consolidated, symbols_array, empty_image, pixel_dictionary, int(config['symbols_dimension']))
+    image = fill_with_squares(pattern_image, config)
     pattern_path = config['output_path'] + "\pattern.png"
-    pattern_image.save(pattern_path)
+    image.save(pattern_path)
     print("Saved image to " + pattern_path)
 
 def main():
