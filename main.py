@@ -4,6 +4,7 @@ from sklearn.cluster import KMeans
 import os
 
 marginWidth = 90
+alphaTolerance = 100
 
 def read_config_file(file_path):
     config = {}
@@ -21,7 +22,7 @@ def kmeans_color_quantization(reference_image, total_colors):
     for y in range(height):
         for x in range(width):
             pixel = reference_image.getpixel((x, y))
-            if len(pixel) >= 4 and pixel[3] == 0:
+            if len(pixel) >= 4 and pixel[3] < alphaTolerance:
                 continue
             pixel_list.append(pixel[:3])
 
@@ -41,7 +42,7 @@ def kmeans_color_quantization(reference_image, total_colors):
         new_row = []
         for x in range(width):
             pixel = reference_image.getpixel((x, y))
-            if len(pixel) >= 4 and pixel[3] == 0:
+            if len(pixel) >= 4 and pixel[3] < alphaTolerance:
                 new_row.append((0, 0, 0, 0))
             else:
                 r, g, b = tuple(cluster_centers[labels[index]])
@@ -100,7 +101,7 @@ def fill_pattern(reference_image, symbols_array, empty_image, pixel_dictionary, 
             r, g, b, a = reference_image.getpixel((x, y))
             output_x = (x * symbols_dimension) + marginWidth
             output_y = (y * symbols_dimension) + marginWidth
-            if a != 0:
+            if a >= alphaTolerance:
                 empty_image.paste(symbols_array[pixel_dictionary[(r, g, b, 255)]], (output_x, output_y))
     return empty_image
 
@@ -108,9 +109,9 @@ def fill_reference_image(pixels):
     image = Image.new("RGBA", (len(pixels[0]), len(pixels)), "white")
     for y, row in enumerate(pixels):
         for x, pixel in enumerate(row):
-            if len(pixel) >= 4 and pixel[3] == 0:
+            if len(pixel) >= 4 and pixel[3] < alphaTolerance:
                 image.putpixel((x, y), (0, 0, 0, 0))
-            elif len(pixel) < 4 or pixel[3] != 0:
+            elif len(pixel) < 4 or pixel[3] >= alphaTolerance:
                 r, g, b, a = pixel
                 image.putpixel((x, y), (r, g, b, 255))
     width, height = image.size
@@ -122,7 +123,7 @@ def get_unique_pixels(reference_image):
     for y in range(height):
         for x in range(width):
             pixel = reference_image.getpixel((x, y))
-            if len(pixel) >= 4 and pixel[3] == 0:
+            if len(pixel) >= 4 and pixel[3] < alphaTolerance:
                 continue
             unique_pixels.add(pixel)
     
@@ -149,7 +150,7 @@ def make_color_count(pixels):
     count_dict = {}
     for y, row in enumerate(pixels):
         for x, pixel in enumerate(row):
-            if len(pixel) >= 4 and pixel[3] == 0:
+            if len(pixel) >= 4 and pixel[3] < alphaTolerance:
                 continue
             if pixel in count_dict:
                 count_dict[pixel] += 1
