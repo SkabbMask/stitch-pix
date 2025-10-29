@@ -1,0 +1,221 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Cross-stitch</title>
+  <style>
+  body { font-family: system-ui, sans-serif; margin: 2rem; }
+  .row { display: flex; gap: 1rem; align-items: center; }
+  .col { display: flex; flex-direction: column; gap: .5rem; }
+  .box { border: 1px dashed #999; padding: 1rem; }
+  img { max-width: 320px; border: 1px solid #ddd; }
+
+  .palette { display: grid; grid-template-columns: repeat(16, 20px); gap: 4px; }
+
+  /* --- merged + new rules --- */
+  .sw {
+    width: 20px;
+    height: 20px;
+    border: 1px solid #0001;
+    position: relative; /* enables the count overlay positioning */
+  }
+  .sw.dragover {
+    outline: 2px dashed #333;
+    outline-offset: 2px;
+  }
+  .sw .count {
+    position: absolute;
+    bottom: -1.2em;
+    left: 0;
+    font-size: 10px;
+    color: #555;
+  }
+</style>
+
+</head>
+<body>
+  <h1>Cross-stitch (Phase 1)</h1>
+
+  <div class="row">
+    <div class="col box">
+      <label>Symbols sprite</label>
+      <input id="symbols" type="file" accept="image/*">
+      <label>Input image</label>
+      <input id="image" type="file" accept="image/*">
+    </div>
+    <div class="col box">
+      <label>symbols_dimension</label><input id="sd" type="number" value="18">
+      <label>total_colors</label><input id="tc" type="number" value="16">
+      <label>font_size</label><input id="fs" type="number" value="16">
+      <label>font_path (optional)</label><input id="fp" type="text" placeholder="">
+      <button id="go">Quantize</button>
+      <button id="bundle">Download bundle</button>
+      <div id="msg"></div>
+    </div>
+  </div>
+
+  <h2>Palette</h2>
+  <div id="palette" class="palette"></div>
+
+  <script>
+  const $ = (id)=>document.getElementById(id);
+  const api = (path)=>`http://127.0.0.1:8000${path}`;
+
+  // --- State ---
+  let originalPalette = [];      // original hex list returned by /quantize
+  let paletteState = [];         // [{hex, count, members:[origIdx,...]}]
+
+  function hexToRgba(hex) {
+    const h = hex.replace("#","").toLowerCase();
+    const r = parseInt(h.slice(0,2),16);
+    const g = parseInt(h.slice(2,4),16);
+    const b = parseInt(h.slice(4,6),16);
+    const a = h.length >= 8 ? parseInt(h.slice(6,8),16) : 255;
+    return [r,g,b,a];
+  }
+  function rgbaToHex([r,g,b,a]) {
+    const to2 = (n)=>n.toString(16).padStart(2,"0");
+    return "#" + to2(r) + to2(g) + to2(b) + to2(a);
+  }
+  function avgRgba(a, b, weightA, weightB) {
+    const tot = weightA + weightB;
+    const wA = weightA / tot, wB = weightB / tot;
+    const out = [0,0,0,0];
+    for (let i=0;i<4;i++) out[i] = Math.round(a[i]*wA + b[i]*wB);
+    return out;
+  }
+
+  function renderPalette() {
+    const pal = $("palette");
+    pal.innerHTML = "";
+    paletteState.forEach((item, idx) => {
+      const d = document.createElement("div");
+      d.className = "sw";
+      d.style.background = item.hex;
+      d.title = `${item.hex} (${item.count})`;
+      d.draggable = true;
+
+      const label = document.createElement("div");
+      label.className = "count";
+      label.textContent = item.count;
+      d.appendChild(label);
+
+      // DnD
+      d.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", String(idx));
+      });
+      d.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        d.classList.add("dragover");
+      });
+      d.addEventListener("dragleave", () => d.classList.remove("dragover"));
+      d.addEventListener("drop", (e) => {
+        e.preventDefault();
+        d.classList.remove("dragover");
+        const fromIdx = parseInt(e.dataTransfer.getData("text/plain"), 10);
+        const toIdx = idx;
+        if (Number.isNaN(fromIdx) || fromIdx === toIdx) return;
+
+        const a = paletteState[fromIdx];
+        const b = paletteState[toIdx];
+        const mergedHex = rgbaToHex(avgRgba(hexToRgba(a.hex), hexToRgba(b.hex), a.count, b.count));
+        const mergedMembers = a.members.concat(b.members);
+
+        paletteState[toIdx] = { hex: mergedHex, count: a.count + b.count, members: mergedMembers };
+        paletteState.splice(fromIdx, 1);
+        renderPalette();
+        $("msg").textContent = `Merged into ${mergedHex} (count ${a.count + b.count}).`;
+      });
+
+      pal.appendChild(d);
+    });
+  }
+
+  function buildMapping() {
+    // Map each original color hex -> the current target hex it belongs to
+    const m = {};
+    paletteState.forEach(sw => {
+      sw.members.forEach(i => {
+        const origHex = originalPalette[i];
+        if (origHex) m[origHex] = sw.hex;
+      });
+    });
+    return m;
+  }
+
+  async function callQuantize() {
+    const sym = $("symbols").files[0];
+    const img = $("image").files[0];
+    if (!sym || !img) { $("msg").textContent = "Select both files first."; return; }
+
+    const f = new FormData();
+    f.append("symbols", sym);
+    f.append("image", img);
+    f.append("symbols_dimension", $("sd").value);
+    f.append("total_colors", $("tc").value);
+    f.append("font_size", $("fs").value);
+    f.append("font_path", $("fp").value || "");
+
+    const r = await fetch(api("/quantize"), { method:"POST", body:f });
+    if (!r.ok) {
+      const j = await r.text().catch(()=>r.statusText);
+      $("msg").textContent = `Quantize failed (${r.status}): ${j.slice(0,200)}`;
+      return;
+    }
+    const j = await r.json();
+
+    originalPalette = (j.palette || []).slice();
+    paletteState = (j.palette || []).map((hex, i) => ({
+      hex,
+      count: Array.isArray(j.counts) && j.counts[i] != null ? Number(j.counts[i]) : 1,
+      members: [i],
+    }));
+
+    $("msg").textContent = `Loaded ${paletteState.length} colors (symbols: ${j.meta?.symbols ?? "?"}).`;
+    renderPalette();
+  }
+
+  async function callRender() {
+    const sym = $("symbols").files[0];
+    const img = $("image").files[0];
+    if (!sym || !img) { $("msg").textContent = "Select both files first."; return; }
+
+    const f = new FormData();
+    f.append("symbols", sym);
+    f.append("image", img);
+    f.append("symbols_dimension", $("sd").value);
+    f.append("total_colors", $("tc").value);
+    f.append("font_size", $("fs").value);
+    f.append("font_path", $("fp").value || "");
+
+    // >>> send mapping built from your merges <<<
+    const mappingObj = buildMapping();
+    f.append("mapping", JSON.stringify(mappingObj));
+
+    let r;
+    try { r = await fetch(api("/render"), { method:"POST", body:f }); }
+    catch (e) { $("msg").textContent = "Network error: " + e; return; }
+
+    if (!r.ok) {
+      const txt = await r.text().catch(()=>r.statusText);
+      $("msg").textContent = `Render failed (${r.status}): ${txt.slice(0,200)}`;
+      return;
+    }
+    const blob = await r.blob();
+    if (blob.size === 0) { $("msg").textContent = "Empty response."; return; }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "pattern_bundle.zip"; a.style.display = "none";
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 4000);
+    $("msg").textContent = "Download started (pattern_bundle.zip).";
+  }
+
+  $("go").onclick = callQuantize;
+  $("bundle").onclick = callRender;
+</script>
+
+
+</body>
+</html>
