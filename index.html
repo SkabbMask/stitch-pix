@@ -12,7 +12,6 @@
 
   .palette { display: grid; grid-template-columns: repeat(16, 20px); gap: 4px; }
 
-  /* --- merged + new rules --- */
   .sw {
     width: 20px;
     height: 20px;
@@ -44,9 +43,9 @@
       <input id="image" type="file" accept="image/*">
     </div>
     <div class="col box">
-      <label>symbols_dimension</label><input id="sd" type="number" value="18">
+      <label>symbols_dimension</label><input id="sd" type="number" value="40">
       <label>total_colors</label><input id="tc" type="number" value="16">
-      <label>font_size</label><input id="fs" type="number" value="16">
+      <label>font_size</label><input id="fs" type="number" value="20">
       <label>font_path (optional)</label><input id="fp" type="text" placeholder="">
       <button id="go">Quantize</button>
       <button id="bundle">Download bundle</button>
