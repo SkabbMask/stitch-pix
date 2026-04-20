@@ -7,14 +7,13 @@ Stitch-Pix transforms an image into a symbol-based cross-stitch pattern. It incl
 ## 🔧 Requirements
 - **Python 3.13+**
 - Install dependencies:  
-  pip install fastapi uvicorn pillow python-multipart  
-  (Optionally create a requirements.txt containing the same four packages.)
+  pip install fastapi uvicorn pillow python-multipart numpy scikit-learn
 
 ---
 
 ## 🧠 Project Structure
     stitch-pix/
-    ├── main.py          # (old, not needed, code is in server.py) Core image & rendering logic
+    ├── main.py          # Core image & rendering logic
     ├── server.py        # FastAPI backend exposing /quantize and /render
     ├── index.html       # Web interface for uploading, merging & exporting
     └── README.md        # This file
@@ -24,10 +23,10 @@ Stitch-Pix transforms an image into a symbol-based cross-stitch pattern. It incl
 ## ▶️ Running the Application
 1. Open a terminal inside the *stitch-pix* folder.  
 2. Start the backend server:  
-       py -3.13 -m uvicorn server:app --reload  
+       py -m uvicorn server:app --reload  
    This launches the API at **http://127.0.0.1:8000**  
 3. In a separate terminal, start a simple local web server:  
-       python -m http.server 8080  
+       py -m http.server 8080
    Then open **http://127.0.0.1:8080/index.html** in your browser.
 
 ---

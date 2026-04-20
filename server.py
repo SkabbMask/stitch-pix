@@ -71,6 +71,7 @@ async def quantize(
     font_size: int = Form(16),
     font_path: str = Form("")
 ):
+    print("quantize...")
     # load images
     sym_img = Image.open(BytesIO(await symbols.read())).convert("RGBA")
     in_img = Image.open(BytesIO(await image.read())).convert("RGBA")
@@ -129,6 +130,7 @@ async def render(
     font_path: str = Form(""),
     mapping: str = Form(default="")  # JSON string: { "#rrggbbaa": "#rrggbbaa", ... }
 ):
+    print("render...")
     try:
         # --- Load inputs ---
         sym_img = Image.open(BytesIO(await symbols.read())).convert("RGBA")
